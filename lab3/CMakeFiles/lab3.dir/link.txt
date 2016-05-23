@@ -1,0 +1,1 @@
+/usr/bin/cc      CMakeFiles/lab3.dir/lab3.c.o  -o lab3 -rdynamic ../../src/libglfw3.a -lrt -lm -lX11 -lpthread -lXrandr -lXinerama -lXi -lXxf86vm -lXcursor -lGL -ldl ../../src/libglfw3.a -lrt -lm -lX11 -lpthread -lXrandr -lXinerama -lXi -lXxf86vm -lXcursor -lGL -ldl 
