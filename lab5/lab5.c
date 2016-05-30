@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <math.h>
+#include <linmath.h>
 
 
 float ratio;
@@ -9,6 +10,7 @@ int width, height;
 int polygon = 0;
 int clipper_count = 0, number_of_clipper_vertices = 10;
 int polygon_count = 0, number_of_polygon_vertices = 10;
+int clip = 0;
 
 struct point {
 	double x;
@@ -17,6 +19,7 @@ struct point {
 
 struct point* clipper_vertices;
 struct point* polygon_vertices;
+struct point* clipped_polygon_vertices;
 
 void set_viewport(GLFWwindow* window){
     glfwGetFramebufferSize(window, &width, &height);
@@ -38,6 +41,8 @@ static void key_callback(GLFWwindow* window, int key, int scancode, int action, 
         glfwSetWindowShouldClose(window, GL_TRUE);
     if(key == GLFW_KEY_P && action == GLFW_PRESS)
         polygon = 1;
+    if(key == GLFW_KEY_C && action == GLFW_PRESS)
+        clip = 1;
 }
 
 void framebuffer_size_callback(GLFWwindow* window, int width, int height){
@@ -64,6 +69,45 @@ void mouse_button_callback(GLFWwindow* window, int button ,int action, int mode)
             }
         } 
     }
+}
+
+int sign(double x){
+    return x > 0 ? 1 : x < 0 ? -1 : 0;
+}
+
+struct point* intersection(struct point first_start, struct point first_end, struct point second_start, struct point second_end){
+    vec3 first_vector, second_vector;
+    first_vector[0] = first_end.x - first_start.x;
+    first_vector[1] = first_end.y - first_start.y;
+    first_vector[2] = second_vector[2] = 0;
+    second_vector[0] = second_end.x - second_start.x;
+    second_vector[1] = second_end.y - second_start.y;
+    float vec_prod_first = first_vector[0] * (second_start.y - first_start.y) - first_vector[1] * (second_start.x - first_start.x);
+    float vec_prod_second = first_vector[0] * (second_end.y - first_start.y) - first_vector[1] * (second_end.x - first_start.x);
+    printf("vec_proc1 = %f %f\n", vec_prod_first, vec_prod_second);
+    if(sign(vec_prod_first) == sign(vec_prod_second) || (vec_prod_first == 0) || vec_prod_second == 0)
+        return NULL;
+    vec_prod_first = second_vector[0] * (first_start.y - second_start.y) - second_vector[1] * (first_start.x - second_start.x);
+    vec_prod_second = second_vector[0] * (first_end.y - second_start.y) - second_vector[1] * (first_end.x - second_start.x);
+    printf("vec_proc2 = %f %f\n", vec_prod_first, vec_prod_second);
+    if(sign(vec_prod_first) == sign(vec_prod_second) || vec_prod_first == 0 || vec_prod_second == 0)
+        return NULL;
+    struct point* intersect = (struct point*) malloc(sizeof(struct point));
+    intersect->x = first_start.x + first_vector[0] * fabs(vec_prod_first)/fabs(vec_prod_second-vec_prod_first);
+    intersect->y = first_start.y + first_vector[1] * fabs(vec_prod_first)/fabs(vec_prod_second-vec_prod_first);
+    return intersect;         
+}
+
+void Satherlend_Hodgman(struct point* polygon_vertices, struct point* clipper_vertices){
+    //clipped_polygon_vertices = (struct point*) calloc(4*number_of_polygon_vertices, sizeof(struct point));
+    //int i;
+    //for(i = 0; i < clipper_count; i++){
+        struct point* intersect = intersection(polygon_vertices[0], polygon_vertices[1], clipper_vertices[0], clipper_vertices[1]); 
+        if(intersect != NULL){
+            printf("%d %d\n", (int)intersect->x, (int)intersect->y);
+            free(intersect);
+        }
+    //}
 }
 
 void draw_clipper(){
@@ -111,6 +155,8 @@ void draw(GLFWwindow *window){
     draw_clipper();
     if(polygon)
         draw_polygon();
+    if(clip)
+        Satherlend_Hodgman(polygon_vertices, clipper_vertices);
     glfwSwapBuffers(window);
     glfwPollEvents();
 }
