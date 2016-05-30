@@ -10,6 +10,7 @@ int width, height;
 int polygon = 0;
 int clipper_count = 0, number_of_clipper_vertices = 10;
 int polygon_count = 0, number_of_polygon_vertices = 10;
+int clipped_polygon_count = 0, number_of_clipped_polygon_vertices = 40;
 int clip = 0;
 
 struct point {
@@ -35,14 +36,25 @@ void set_projection(){
     glLoadIdentity();
 }
 
+int is_inside_polygon(struct point* pl, struct point p);
 
 static void key_callback(GLFWwindow* window, int key, int scancode, int action, int mods){
    if (key == GLFW_KEY_ESCAPE && action == GLFW_PRESS)
         glfwSetWindowShouldClose(window, GL_TRUE);
     if(key == GLFW_KEY_P && action == GLFW_PRESS)
         polygon = 1;
-    if(key == GLFW_KEY_C && action == GLFW_PRESS)
+    if(key == GLFW_KEY_C && action == GLFW_PRESS){
+        number_of_clipped_polygon_vertices = 4 * number_of_polygon_vertices;
+        clipped_polygon_vertices = (struct point*) calloc(number_of_clipped_polygon_vertices, sizeof(struct point));
         clip = 1;
+        int i;
+        for(i = 0; i < clipper_count; i++){
+            if(is_inside_polygon(polygon_vertices, clipper_vertices[i])){
+                clipped_polygon_vertices[clipped_polygon_count] = clipper_vertices[i];
+                clipped_polygon_count++;
+            }
+        }
+    }
 }
 
 void framebuffer_size_callback(GLFWwindow* window, int width, int height){
@@ -84,12 +96,12 @@ struct point* intersection(struct point first_start, struct point first_end, str
     second_vector[1] = second_end.y - second_start.y;
     float vec_prod_first = first_vector[0] * (second_start.y - first_start.y) - first_vector[1] * (second_start.x - first_start.x);
     float vec_prod_second = first_vector[0] * (second_end.y - first_start.y) - first_vector[1] * (second_end.x - first_start.x);
-    printf("vec_proc1 = %f %f\n", vec_prod_first, vec_prod_second);
+    //printf("vec_proc1 = %f %f\n", vec_prod_first, vec_prod_second);
     if(sign(vec_prod_first) == sign(vec_prod_second) || (vec_prod_first == 0) || vec_prod_second == 0)
         return NULL;
     vec_prod_first = second_vector[0] * (first_start.y - second_start.y) - second_vector[1] * (first_start.x - second_start.x);
     vec_prod_second = second_vector[0] * (first_end.y - second_start.y) - second_vector[1] * (first_end.x - second_start.x);
-    printf("vec_proc2 = %f %f\n", vec_prod_first, vec_prod_second);
+    //printf("vec_proc2 = %f %f\n", vec_prod_first, vec_prod_second);
     if(sign(vec_prod_first) == sign(vec_prod_second) || vec_prod_first == 0 || vec_prod_second == 0)
         return NULL;
     struct point* intersect = (struct point*) malloc(sizeof(struct point));
@@ -98,16 +110,27 @@ struct point* intersection(struct point first_start, struct point first_end, str
     return intersect;         
 }
 
+int is_inside_polygon(struct point* pl, struct point p){
+    int c = 0;
+    int i, j;    
+    for (i = 0, j = polygon_count-1; i < polygon_count; j = i++) {
+        if ((((pl[i].y<=p.y) && (p.y<pl[j].y)) || ((pl[j].y<=p.y) && (p.y<pl[i].y))) && (p.x > (pl[j].x - pl[i].x) * (p.y - pl[i].y) / (pl[j].y - pl[i].y) + pl[i].x))
+            c = !c;
+    }
+    return c;
+}
+
 void Satherlend_Hodgman(struct point* polygon_vertices, struct point* clipper_vertices){
-    //clipped_polygon_vertices = (struct point*) calloc(4*number_of_polygon_vertices, sizeof(struct point));
-    //int i;
-    //for(i = 0; i < clipper_count; i++){
-        struct point* intersect = intersection(polygon_vertices[0], polygon_vertices[1], clipper_vertices[0], clipper_vertices[1]); 
-        if(intersect != NULL){
-            printf("%d %d\n", (int)intersect->x, (int)intersect->y);
-            free(intersect);
+    int i, j;
+    for(i = 0; i < polygon_count; i++){ 
+        for(j = 0; j < clipper_count; j++){
+            struct point* intersect = intersection(polygon_vertices[i], polygon_vertices[(i+1) % polygon_count], clipper_vertices[j], clipper_vertices[(j+1) % clipper_count]); 
+            if(intersect != NULL){
+                //printf("%d %d\n", (int)intersect->x, (int)intersect->y);
+                free(intersect);
+            }
         }
-    //}
+    }
 }
 
 void draw_clipper(){
@@ -126,6 +149,10 @@ void draw_polygon(){
         glVertex2f(polygon_vertices[i].x, polygon_vertices[i].y);
     }
     glEnd();
+}
+
+void draw_clipped_polygon(){
+    Satherlend_Hodgman(polygon_vertices, clipper_vertices);
 }
 
 GLFWwindow* init_window(){
@@ -156,7 +183,7 @@ void draw(GLFWwindow *window){
     if(polygon)
         draw_polygon();
     if(clip)
-        Satherlend_Hodgman(polygon_vertices, clipper_vertices);
+        draw_clipped_polygon();
     glfwSwapBuffers(window);
     glfwPollEvents();
 }
@@ -167,6 +194,7 @@ void stop(GLFWwindow *window, GLFWcursor* cursor){
     glfwTerminate();
     free(clipper_vertices);
     free(polygon_vertices);
+    free(clipped_polygon_vertices);
 }
 
 int main(void){
