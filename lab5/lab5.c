@@ -36,7 +36,8 @@ void set_projection(){
     glLoadIdentity();
 }
 
-int is_inside_polygon(struct point* pl, struct point p);
+int is_inside_polygon(struct point*, struct point);
+void Satherlend_Hodgman(struct point*, struct point*);
 
 static void key_callback(GLFWwindow* window, int key, int scancode, int action, int mods){
    if (key == GLFW_KEY_ESCAPE && action == GLFW_PRESS)
@@ -54,6 +55,7 @@ static void key_callback(GLFWwindow* window, int key, int scancode, int action, 
                 clipped_polygon_count++;
             }
         }
+        Satherlend_Hodgman(polygon_vertices, clipper_vertices);
     }
 }
 
@@ -114,20 +116,40 @@ int is_inside_polygon(struct point* pl, struct point p){
     int c = 0;
     int i, j;    
     for (i = 0, j = polygon_count-1; i < polygon_count; j = i++) {
-        if ((((pl[i].y<=p.y) && (p.y<pl[j].y)) || ((pl[j].y<=p.y) && (p.y<pl[i].y))) && (p.x > (pl[j].x - pl[i].x) * (p.y - pl[i].y) / (pl[j].y - pl[i].y) + pl[i].x))
+        if ((((pl[i].y<=p.y) && (p.y<pl[j].y)) || ((pl[j].y<=p.y) && (p.y<pl[i].y))) && (p.x > (pl[j].x - pl[i].x) * (p.y - pl[i].y) / (pl[j].y - pl[i].y) + pl[i].x)){
+            printf("%d\n", c);
             c = !c;
+        }
     }
+    printf("final = %d ", c);
     return c;
 }
 
 void Satherlend_Hodgman(struct point* polygon_vertices, struct point* clipper_vertices){
     int i, j;
     for(i = 0; i < polygon_count; i++){ 
+        int intersection_flag = 0;
+        struct point* intersect = NULL;
         for(j = 0; j < clipper_count; j++){
-            struct point* intersect = intersection(polygon_vertices[i], polygon_vertices[(i+1) % polygon_count], clipper_vertices[j], clipper_vertices[(j+1) % clipper_count]); 
+            intersect = intersection(polygon_vertices[i], polygon_vertices[(i+1) % polygon_count], clipper_vertices[j], clipper_vertices[(j+1) % clipper_count]); 
+            printf("intersect %d%d with %d%d = %p\n", j, (j+1) % clipper_count, i, (i+1) % polygon_count, intersect);
             if(intersect != NULL){
-                //printf("%d %d\n", (int)intersect->x, (int)intersect->y);
+                intersection_flag = 1;
+                clipped_polygon_vertices[clipped_polygon_count] = *intersect;
+                clipped_polygon_count++;
                 free(intersect);
+            }
+        }
+        if(intersection_flag == 0){
+            if(!is_inside_polygon(clipper_vertices, polygon_vertices[i])){
+                printf("!");
+                clipped_polygon_vertices[clipped_polygon_count] = polygon_vertices[i];
+                clipped_polygon_count++;
+                if(i+1 == polygon_count)
+                    return;
+                clipped_polygon_vertices[clipped_polygon_count] = polygon_vertices[(i+1) % polygon_count];
+                clipped_polygon_count++;
+                i++;
             }
         }
     }
@@ -137,6 +159,7 @@ void draw_clipper(){
     glBegin(GL_LINE_LOOP);
     int i;
     for(i = 0; i < clipper_count; i++){
+        glColor3f(1.f,1.f,1.f);
         glVertex2f(clipper_vertices[i].x, clipper_vertices[i].y);
     } 
     glEnd();
@@ -146,13 +169,21 @@ void draw_polygon(){
     glBegin(GL_POLYGON);
     int i;
     for(i = 0; i < polygon_count; i++){
+        glColor3f(0.f,0.f,1.f);
         glVertex2f(polygon_vertices[i].x, polygon_vertices[i].y);
     }
     glEnd();
 }
 
 void draw_clipped_polygon(){
-    Satherlend_Hodgman(polygon_vertices, clipper_vertices);
+    glBegin(GL_POLYGON);
+    int i;
+    for(i = 0; i < clipped_polygon_count; i++){
+        glColor3f(1.f,0.f,0.f);
+        glVertex2f(clipped_polygon_vertices[i].x , clipped_polygon_vertices[i].y);
+        printf("clipped_polygon %d = %f %f\n", i, clipped_polygon_vertices[i].x, clipped_polygon_vertices[i].y);
+    }
+    glEnd();
 }
 
 GLFWwindow* init_window(){
@@ -179,11 +210,11 @@ GLFWwindow* init_window(){
 void draw(GLFWwindow *window){
     glClear(GL_COLOR_BUFFER_BIT);
     glMatrixMode(GL_MODELVIEW);
-    draw_clipper();
     if(polygon)
         draw_polygon();
     if(clip)
         draw_clipped_polygon();
+    draw_clipper();
     glfwSwapBuffers(window);
     glfwPollEvents();
 }
