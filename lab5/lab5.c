@@ -12,6 +12,7 @@ int clipper_count = 0, number_of_clipper_vertices = 10;
 int polygon_count = 0, number_of_polygon_vertices = 10;
 int clipped_polygon_count = 0, number_of_clipped_polygon_vertices = 40;
 int clip = 0;
+int min_x = 0;
 
 struct point {
 	double x;
@@ -125,22 +126,19 @@ int is_inside_polygon(struct point* pl, struct point p, size_t length){
     return c;
 }
 
-struct point fp;
-
 int cmpfunc (const void *a, const void *b){
-    //TODO polat plot compare
     struct point* f = (struct point*) a;
     struct point* s = (struct point*) b;
-    
-    float length1 = (f->x - fp.x)*(f->x - fp.x) + (f->y - fp.y)*(f->y-fp.y);
-    float length2 = (s->x - fp.x)*(s->x - fp.x) + (s->y - fp.y)*(s->y-fp.y);
-    return length1>length2;
+    if(sign(f->y - clipped_polygon_vertices[0].y) != sign(s->y - clipped_polygon_vertices[0].y))
+        return f->y > clipped_polygon_vertices[0].y ? 1 : 0; 
+    else if(sign(f->y - clipped_polygon_vertices[0].y) > 0) 
+        return f->x <  s->x;
+    else return f-> x > s->x;
 }
 
 void Satherlend_Hodgman(struct point* polygon_vertices, struct point* clipper_vertices){
     int i, j;
     for(i = 0; i < polygon_count; i++){ 
-        int start = clipped_polygon_count;
         struct point* intersect = NULL;
         for(j = 0; j < clipper_count; j++){
             intersect = intersection(polygon_vertices[i], polygon_vertices[(i+1) % polygon_count], clipper_vertices[j], clipper_vertices[(j+1) % clipper_count]); 
@@ -155,13 +153,8 @@ void Satherlend_Hodgman(struct point* polygon_vertices, struct point* clipper_ve
                 printf("!");
                 clipped_polygon_vertices[clipped_polygon_count] = polygon_vertices[i];
                 clipped_polygon_count++;
-                //clipped_polygon_vertices[clipped_polygon_count] = polygon_vertices[(i+1) % polygon_count];
-                //clipped_polygon_count++;
-            }
-        fp = polygon_vertices[i];
-        qsort(clipped_polygon_vertices + start, clipped_polygon_count - start, sizeof(struct point), cmpfunc);
-            
         }
+    }
     return;
 }
 
@@ -185,14 +178,20 @@ void draw_polygon(){
     glEnd();
 }
 
-
-
 void draw_clipped_polygon(){
-    //qsort(clipped_polygon_vertices,clipped_polygon_count, sizeof(struct point), cmpfunc);
+    int i;
+    for(i = 0; i < clipped_polygon_count; i++)
+        if(clipped_polygon_vertices[i].x < clipped_polygon_vertices[min_x].x)
+            min_x = i;
+    struct point t;
+    t = clipped_polygon_vertices[min_x];
+    clipped_polygon_vertices[min_x] = clipped_polygon_vertices[0];
+    clipped_polygon_vertices[0] = t; 
+    qsort(clipped_polygon_vertices,clipped_polygon_count, sizeof(struct point), cmpfunc);
     //TODO reorder clockwise
     glBegin(GL_LINE_LOOP);
-    int i;
     for(i = 0; i < clipped_polygon_count; i++){
+        printf("point %d = %f %f\n", i, clipped_polygon_vertices[i].x, clipped_polygon_vertices[i].y); 
         glColor3f(1.f,0.f,0.f);
         glVertex2f(clipped_polygon_vertices[i].x , clipped_polygon_vertices[i].y);
         //printf("clipped_polygon %d = %f %f\n", i, clipped_polygon_vertices[i].x, clipped_polygon_vertices[i].y);
