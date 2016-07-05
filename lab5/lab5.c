@@ -157,10 +157,9 @@ void Satherlend_Hodgman(struct point* polygon_vertices, struct point* clipper_ve
                 clipped_polygon_count++;
                 //clipped_polygon_vertices[clipped_polygon_count] = polygon_vertices[(i+1) % polygon_count];
                 //clipped_polygon_count++;
-            }
+        }
         fp = polygon_vertices[i];
         qsort(clipped_polygon_vertices + start, clipped_polygon_count - start, sizeof(struct point), cmpfunc);
-            
         }
     return;
 }
