@@ -3,7 +3,7 @@
 #include <stdio.h>
 #include <math.h>
 #include <linmath.h>
-
+#include <string.h>
 
 float ratio;
 int width, height;
@@ -12,22 +12,25 @@ int clipper_count = 0, number_of_clipper_vertices = 10;
 int polygon_count = 0, number_of_polygon_vertices = 10;
 int clipped_polygon_count = 0, number_of_clipped_polygon_vertices = 40;
 int clip = 0;
+int buf_count = 0;
 
 struct point {
-	double x;
+    double x;
     double y;
 };
 
 struct point* clipper_vertices;
 struct point* polygon_vertices;
 struct point* clipped_polygon_vertices;
+struct point* buffer;
 
 void set_viewport(GLFWwindow* window){
     glfwGetFramebufferSize(window, &width, &height);
     glViewport(0, 0, width, height);
 }
 
-void set_projection(){
+void set_projection(GLFWwindow* window){
+    glfwGetFramebufferSize(window, &width, &height);
     ratio = width / (float) height;
     glMatrixMode(GL_PROJECTION);
     glLoadIdentity();
@@ -36,8 +39,7 @@ void set_projection(){
     glLoadIdentity();
 }
 
-int is_inside_polygon(struct point*, struct point, size_t);
-void Satherlend_Hodgman(struct point*, struct point*);
+void Satherlend_Hodgman(const struct point*, struct point*);
 
 static void key_callback(GLFWwindow* window, int key, int scancode, int action, int mods){
    if (key == GLFW_KEY_ESCAPE && action == GLFW_PRESS)
@@ -48,20 +50,13 @@ static void key_callback(GLFWwindow* window, int key, int scancode, int action, 
         number_of_clipped_polygon_vertices = 4 * number_of_polygon_vertices;
         clipped_polygon_vertices = (struct point*) calloc(number_of_clipped_polygon_vertices, sizeof(struct point));
         clip = 1;
-        int i;
-        for(i = 0; i < clipper_count; i++){
-            if(is_inside_polygon(polygon_vertices, clipper_vertices[i], polygon_count)){
-                clipped_polygon_vertices[clipped_polygon_count] = clipper_vertices[i];
-                clipped_polygon_count++;
-            }
-        }
         Satherlend_Hodgman(polygon_vertices, clipper_vertices);
     }
 }
 
 void framebuffer_size_callback(GLFWwindow* window, int width, int height){
+    set_projection(window);
     set_viewport(window);
-    set_projection();
 }
 
 void mouse_button_callback(GLFWwindow* window, int button ,int action, int mode){
@@ -89,27 +84,21 @@ int sign(double x){
     return x > 0 ? 1 : x < 0 ? -1 : 0;
 }
 
-struct point* intersection(struct point first_start, struct point first_end, struct point second_start, struct point second_end){
-    vec3 first_vector, second_vector;
-    first_vector[0] = first_end.x - first_start.x;
-    first_vector[1] = first_end.y - first_start.y;
-    first_vector[2] = second_vector[2] = 0;
-    second_vector[0] = second_end.x - second_start.x;
-    second_vector[1] = second_end.y - second_start.y;
-    float vec_prod_first = first_vector[0] * (second_start.y - first_start.y) - first_vector[1] * (second_start.x - first_start.x);
-    float vec_prod_second = first_vector[0] * (second_end.y - first_start.y) - first_vector[1] * (second_end.x - first_start.x);
-    printf("vec_proc1 = %f %f\n", vec_prod_first, vec_prod_second);
-    if(sign(vec_prod_first) == sign(vec_prod_second) || (vec_prod_first == 0) || vec_prod_second == 0)
+struct point* intersect(struct point p1, struct point p2, struct point p3, struct point p4){
+    double denom = (p4.y - p3.y) * (p2.x - p1.x) - (p4.x - p3.x) * (p2.y - p1.y);
+    if(!denom)
         return NULL;
-    vec_prod_first = second_vector[0] * (first_start.y - second_start.y) - second_vector[1] * (first_start.x - second_start.x);
-    vec_prod_second = second_vector[0] * (first_end.y - second_start.y) - second_vector[1] * (first_end.x - second_start.x);
-    printf("vec_proc2 = %f %f\n", vec_prod_first, vec_prod_second);
-    if(sign(vec_prod_first) == sign(vec_prod_second) || vec_prod_first == 0 || vec_prod_second == 0)
-        return NULL;
-    struct point* intersect = (struct point*) malloc(sizeof(struct point));
-    intersect->x = first_start.x + first_vector[0] * fabs(vec_prod_first)/fabs(vec_prod_second-vec_prod_first);
-    intersect->y = first_start.y + first_vector[1] * fabs(vec_prod_first)/fabs(vec_prod_second-vec_prod_first);
-    return intersect;         
+    double f_inter_param = ((p4.x - p3.x) * (p1.y - p3.y) - (p4.y - p3.y) * (p1.x - p3.x)) / denom;
+    double s_inter_param = ((p2.x - p1.x) * (p1.y - p3.y) - (p2.y - p1.y) * (p1.x - p3.x)) / denom;
+    if(0 < f_inter_param && f_inter_param < 1){
+        struct point *intersection = (struct point *)malloc(sizeof(struct point));
+        intersection->x = p1.x + f_inter_param * (p2.x - p1.x);
+        intersection->y = p1.y + f_inter_param * (p2.y - p1.y);
+        printf("params %f %f\n", f_inter_param, s_inter_param);
+        printf("point =  %p\n", intersection);
+        return intersection;
+    }
+    else return NULL;
 }
 
 int is_inside_polygon(struct point* pl, struct point p, size_t length){
@@ -121,46 +110,83 @@ int is_inside_polygon(struct point* pl, struct point p, size_t length){
             c = !c;
         }
     }
-    printf("final = %d ", c);
+    printf("final = %d\n", c);
     return c;
 }
 
-struct point fp;
-
-int cmpfunc (const void *a, const void *b){
-    //TODO polat plot compare
-    struct point* f = (struct point*) a;
-    struct point* s = (struct point*) b;
-    
-    float length1 = (f->x - fp.x)*(f->x - fp.x) + (f->y - fp.y)*(f->y-fp.y);
-    float length2 = (s->x - fp.x)*(s->x - fp.x) + (s->y - fp.y)*(s->y-fp.y);
-    return length1>length2;
+int is_visible(struct point *vertices, struct point p, int begin, int end, size_t count){
+    if(begin >= count || end >= count){
+        printf("Wrong params\n");
+        return -1;
+    }
+    int rand = (end + 1) % count;
+    if(rand == begin){
+      printf("Smth goes wrong...\n");
+      return -1;
+    }
+    double prod_p, prod_rand;
+    struct point d_vec, p_vec, rand_vec;
+    d_vec.x = vertices[end].x - vertices[begin].x;
+    d_vec.y = vertices[end].y - vertices[begin].y;
+    p_vec.x = p.x - vertices[begin].x;
+    p_vec.y = p.y - vertices[begin].y;
+    rand_vec.x = vertices[rand].x - vertices[begin].x;
+    rand_vec.y = vertices[rand].y - vertices[begin].y;
+    prod_p = d_vec.x * p_vec.y - p_vec.x * d_vec.y;
+    prod_rand = d_vec.x * rand_vec.y - rand_vec.x * d_vec.y;
+    if(prod_p * prod_rand > 0)
+        return 1;
+    else return 0; 
 }
 
-void Satherlend_Hodgman(struct point* polygon_vertices, struct point* clipper_vertices){
+void Satherlend_Hodgman(const struct point* polygon_vertices, struct point* clipper_vertices){
     int i, j;
-    for(i = 0; i < polygon_count; i++){ 
-        int start = clipped_polygon_count;
-        struct point* intersect = NULL;
-        for(j = 0; j < clipper_count; j++){
-            intersect = intersection(polygon_vertices[i], polygon_vertices[(i+1) % polygon_count], clipper_vertices[j], clipper_vertices[(j+1) % clipper_count]); 
-            printf("intersect %d%d with %d%d = %p\n", j, (j+1) % clipper_count, i, (i+1) % polygon_count, intersect);
-            if(intersect != NULL){
-                clipped_polygon_vertices[clipped_polygon_count] = *intersect;
-                clipped_polygon_count++;
-                free(intersect);
+    buf_count = polygon_count;
+    buffer = (struct point *)calloc(number_of_clipped_polygon_vertices, sizeof(struct point));
+    memcpy(buffer, polygon_vertices, polygon_count * sizeof(struct point));
+    for(i = 0; i < clipper_count; i++){
+        for(j = 0; j < buf_count; j++){
+            int vis_f = is_visible(clipper_vertices, buffer[j], i, (i + 1) % clipper_count, clipper_count);
+            int vis_s = is_visible(clipper_vertices, buffer[(j + 1) % buf_count], i, (i + 1) % clipper_count, clipper_count);
+            if(vis_f == -1 || vis_s == -1){
+                printf("Error in is_visible!\n");
+                return;
             }
-        }
-        if(is_inside_polygon(clipper_vertices, polygon_vertices[i], clipper_count)){
-                printf("!");
-                clipped_polygon_vertices[clipped_polygon_count] = polygon_vertices[i];
+            if(!vis_f && !vis_s)
+                continue;
+            else if(vis_f && vis_s){
+                clipped_polygon_vertices[clipped_polygon_count] = buffer[j];
                 clipped_polygon_count++;
-                //clipped_polygon_vertices[clipped_polygon_count] = polygon_vertices[(i+1) % polygon_count];
-                //clipped_polygon_count++;
+                printf("added %d\n", j);
+                continue;
+            }
+            struct point* intersection = intersect(buffer[j], buffer[(j + 1) % buf_count], clipper_vertices[i], clipper_vertices[(i + 1) % clipper_count]); 
+            printf("point =  %p at  %d %d with %d %d\n", intersection, j, (j+1) % buf_count, i, (i+1) % clipper_count);
+            printf("visibility = %d %d\n", vis_f, vis_s);
+            if(!intersection){
+                printf("Erorr in intersection!\n");
+                return;
+            }
+            else if(vis_f && !vis_s){
+                clipped_polygon_vertices[clipped_polygon_count] = buffer[j];
+                printf("added %d\n", j);
+                clipped_polygon_count++;
+                clipped_polygon_vertices[clipped_polygon_count] = *intersection; 
+                printf("added intersection %d %d with %d %d\n", j, (j+1) % buf_count, i, (i+1) % clipper_count); 
+                clipped_polygon_count++;
+            }
+            else if(!vis_f && vis_s){
+                clipped_polygon_vertices[clipped_polygon_count] = *intersection;
+                printf("added intersection %d %d with %d %d\n", j, (j+1) % buf_count, i, (i+1) % clipper_count); 
+                clipped_polygon_count++;
+            }
+            free(intersection);
         }
-        fp = polygon_vertices[i];
-        qsort(clipped_polygon_vertices + start, clipped_polygon_count - start, sizeof(struct point), cmpfunc);
-        }
+        buf_count = clipped_polygon_count;
+        memcpy(buffer, clipped_polygon_vertices, clipped_polygon_count * sizeof(struct point));
+        clipped_polygon_count = 0;
+        memset(clipped_polygon_vertices, 0, sizeof(struct point));
+    }
     return;
 }
 
@@ -187,14 +213,11 @@ void draw_polygon(){
 
 
 void draw_clipped_polygon(){
-    //qsort(clipped_polygon_vertices,clipped_polygon_count, sizeof(struct point), cmpfunc);
-    //TODO reorder clockwise
     glBegin(GL_LINE_LOOP);
     int i;
-    for(i = 0; i < clipped_polygon_count; i++){
+    for(i = 0; i < buf_count; i++){
         glColor3f(1.f,0.f,0.f);
-        glVertex2f(clipped_polygon_vertices[i].x , clipped_polygon_vertices[i].y);
-        //printf("clipped_polygon %d = %f %f\n", i, clipped_polygon_vertices[i].x, clipped_polygon_vertices[i].y);
+        glVertex2f(buffer[i].x , buffer[i].y);
     }
     glEnd();
 }
