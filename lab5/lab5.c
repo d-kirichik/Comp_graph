@@ -156,6 +156,7 @@ void Satherlend_Hodgman(const struct point* polygon_vertices, struct point* clip
                 continue;
             else if(vis_f && vis_s){
                 clipped_polygon_vertices[clipped_polygon_count] = buffer[j];
+
                 clipped_polygon_count++;
                 printf("added %d\n", j);
                 continue;
@@ -186,6 +187,7 @@ void Satherlend_Hodgman(const struct point* polygon_vertices, struct point* clip
         memcpy(buffer, clipped_polygon_vertices, clipped_polygon_count * sizeof(struct point));
         clipped_polygon_count = 0;
         memset(clipped_polygon_vertices, 0, sizeof(struct point));
+
     }
     return;
 }
@@ -210,12 +212,11 @@ void draw_polygon(){
     glEnd();
 }
 
-
-
 void draw_clipped_polygon(){
     glBegin(GL_LINE_LOOP);
     int i;
     for(i = 0; i < buf_count; i++){
+
         glColor3f(1.f,0.f,0.f);
         glVertex2f(buffer[i].x , buffer[i].y);
     }
