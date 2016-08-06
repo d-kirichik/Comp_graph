@@ -80,10 +80,6 @@ void mouse_button_callback(GLFWwindow* window, int button ,int action, int mode)
     }
 }
 
-int sign(double x){
-    return x > 0 ? 1 : x < 0 ? -1 : 0;
-}
-
 struct point* intersect(struct point p1, struct point p2, struct point p3, struct point p4){
     double denom = (p4.y - p3.y) * (p2.x - p1.x) - (p4.x - p3.x) * (p2.y - p1.y);
     if(!denom)
@@ -99,19 +95,6 @@ struct point* intersect(struct point p1, struct point p2, struct point p3, struc
         return intersection;
     }
     else return NULL;
-}
-
-int is_inside_polygon(struct point* pl, struct point p, size_t length){
-    int c = 0;
-    int i, j;    
-    for (i = 0, j = length-1; i < length; j = i++) {
-        if ((((pl[i].y<=p.y) && (p.y<pl[j].y)) || ((pl[j].y<=p.y) && (p.y<pl[i].y))) && (p.x > (pl[j].x - pl[i].x) * (p.y - pl[i].y) / (pl[j].y - pl[i].y) + pl[i].x)){
-            printf("%d\n", c);
-            c = !c;
-        }
-    }
-    printf("final = %d\n", c);
-    return c;
 }
 
 int is_visible(struct point *vertices, struct point p, int begin, int end, size_t count){
@@ -192,6 +175,23 @@ void Satherlend_Hodgman(const struct point* polygon_vertices, struct point* clip
     return;
 }
 
+int belongs_to_segment(struct point s_seg, struct point e_seg, struct point unknown){
+    double s_prod, ps_prod;
+    struct point vec_s, vec_e, vec_dir;
+    vec_s.x = s_seg.x - unknown.x;
+    vec_s.y = s_seg.y - unknown.y;
+    vec_e.x = e_seg.x - unknown.x;
+    vec_e.y = e_seg.y - unknown.y;
+    vec_dir.x = e_seg.x - s_seg.x;
+    vec_dir.y = e_seg.y - s_seg.y;
+    s_prod = vec_s.x * vec_e.x + vec_s.y * vec_e.y;
+    ps_prod = vec_dir.x * (-vec_s.y) + vec_s.x * vec_dir.y;
+    printf("prods = %f %f\n", ps_prod, s_prod);
+    if((int)ps_prod == 0 && s_prod <= 0 )
+        return 1;
+    else return 0;
+}
+
 void draw_clipper(){
     glBegin(GL_LINE_LOOP);
     int i;
@@ -215,12 +215,32 @@ void draw_polygon(){
 void draw_clipped_polygon(){
     glBegin(GL_LINE_LOOP);
     int i;
-    for(i = 0; i < buf_count; i++){
-
+    for(i = 0; i < polygon_count; i++){
         glColor3f(1.f,0.f,0.f);
+        glVertex2f(polygon_vertices[i].x, polygon_vertices[i].y);
+    }
+    glEnd();
+    glBegin(GL_LINE_LOOP);
+    for(i = 0; i < buf_count; i++){
+        glColor3f(0.f,0.f,1.f);
         glVertex2f(buffer[i].x , buffer[i].y);
     }
     glEnd();
+    int j;
+    for(i = 0; i < buf_count; i++){
+        for(j = 0; j < clipper_count; j++){
+            int belong_f = belongs_to_segment(clipper_vertices[j], clipper_vertices[(j+1) % clipper_count], buffer[i]);
+            int belong_s = belongs_to_segment(clipper_vertices[j], clipper_vertices[(j+1) % clipper_count], buffer[(i+1) % buf_count]);
+            printf("%d %d\n", belong_f, belong_s);
+            if(belong_f && belong_s){
+                glBegin(GL_LINES);
+                glColor3f(1.f, 0.f, 0.f);
+                glVertex2f(buffer[i].x, buffer[i].y);
+                glVertex2f(buffer[(i+1) % buf_count].x, buffer[(i+1) % buf_count].y);
+                glEnd();
+            }
+        }
+    }
 }
 
 GLFWwindow* init_window(){
@@ -262,6 +282,7 @@ void stop(GLFWwindow *window, GLFWcursor* cursor){
     free(clipper_vertices);
     free(polygon_vertices);
     free(clipped_polygon_vertices);
+    free(buffer);
 }
 
 int main(void){
