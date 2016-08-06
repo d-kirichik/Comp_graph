@@ -175,7 +175,7 @@ void Satherlend_Hodgman(const struct point* polygon_vertices, struct point* clip
     return;
 }
 
-int belongs_to_segment(struct point s_seg, struct point e_seg, struct point unknown){
+/*int belongs_to_segment(struct point s_seg, struct point e_seg, struct point unknown){
     double s_prod, ps_prod;
     struct point vec_s, vec_e, vec_dir;
     vec_s.x = s_seg.x - unknown.x;
@@ -190,6 +190,34 @@ int belongs_to_segment(struct point s_seg, struct point e_seg, struct point unkn
     if((int)ps_prod == 0 && s_prod <= 0 )
         return 1;
     else return 0;
+}*/
+double min(double x, double y){
+    if(x < y)
+        return x;
+    else return y;
+}
+
+double max(double x, double y){
+    if(x > y)
+        return x;
+    else return y;
+}
+
+int point_in_box (struct point t, struct point p1, struct point p2){
+	double eps = 1e-8;
+    return  (abs (t.x - min(p1.x, p2.x)) <= eps || min(p1.x, p2.x) <= t.x) &&
+            (abs (max(p1.x, p2.x) - t.x) <= eps || max(p1.x, p2.x) >= t.x) &&
+            (abs (t.y - min(p1.y, p2.y)) <= eps || min(p1.y, p2.y) <= t.y) &&
+            (abs (max(p1.y, p2.y) - t.y) <= eps || max(p1.y, p2.y) >= t.y);
+}
+
+int belongs_to_segment (struct point p1, struct point p2, struct point t){
+	double eps = 1e-8;
+    double a = p2.y - p1.y;
+    double b = p1.x - p2.x;
+    double c = - a * p1.x - b * p1.y;
+    if (abs(a * t.x + b * t.y + c) > eps) return 0;
+    return point_in_box (t, p1, p2);
 }
 
 void draw_clipper(){
