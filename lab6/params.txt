@@ -1,0 +1,33 @@
+torus_params:
+32 //partition 
+0.15 //torus_major
+0.05 //torus_minor
+0 //polygon_mode
+
+light_param:
+0.5 0.2 0.2 1 //lightcolor0
+0 -1 1 0 //lightpos0
+0.2 0.2 1 1 //lightcolor1
+0 1 1 0 //lightpos1
+0 //light0
+0 //light1
+	
+tex_param:
+ball.bmp //path to image
+0 //textured
+
+anima_param:
+0 -0.1 0 //fall
+0 //animated
+0 //dt	
+20 //animation_speed
+
+transform_param:
+0 1 0 //rotation_axis
+0 0 0 //translation
+1 1 1 //scale
+75 //alpha
+
+
+
+
