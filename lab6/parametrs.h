@@ -46,118 +46,51 @@ struct scene{
     struct transform_param transform_param;
 };
 
-size_t get_next_int(char* data, const char* offset, int* field){
-    char *temp = data;
-    for(; *data != '\t'; data++);
-    data += strlen(offset);
-    *field = atoi(data);
-    return data - temp;
-} 
-
-size_t get_next_float(char* data, const char* offset, float* field){
-    char *temp = data;
-    for(; *data != '\t'; data++);
-    data += strlen(offset);
-    *field = atof(data);
-    return data - temp;
-}
-
-size_t get_array(char *data, float* array, size_t size){
-    char *temp = data;
-    int i;  
-    printf("\n%s\n", data);
-    array[0] = atof(data);
-    for(i = 0; i < size; i++){
-        for(; *data != ','; data++);
-        array[i+1] = atof(data += 2);
-    }
-    return data - temp;
-}
-
-size_t get_str(char *data, char* field){
-    char *temp = data;
-    int i;
-    for(; *data != '"'; data++);
-    data++;
-    for(i = 0; *data != '"'; data++, i++){
-        field[i] = *data;
-    }
-    field[i++] = '\0';
-    return data - temp;
-}
-
 struct scene parse_params_file(const char *name){
     struct scene scene;
     FILE* file = fopen(name, "rb");
-    long file_size;
-    char* data, *temp;
-    int bias;
     if(!file){
         printf("File not found\n");
     }
-    fseek(file, 0L, SEEK_END);
-    file_size = ftell(file);
-    rewind(file);
-    data = (char*) malloc((file_size + 1) * sizeof(char));
-    temp = data;
-    fread(data, sizeof(char), file_size, file);
-    bias = get_next_int(data, "partition = ", &scene.torus_param.partition);
-    data += bias;
-    bias = get_next_float(data, "torus_major = ", &scene.torus_param.torus_major); 
-    data += bias;
-    bias = get_next_float(data, "torus_minor = ", &scene.torus_param.torus_minor); 
-    data += bias;
-    bias = get_next_int(data, "polygon_mode =", &scene.torus_param.polygon_mode); 
-    data += bias;
-    for(; *data != '\n'; data++);
-    data += sizeof("\nlight_param:\n\tlightcolor0 =");
-    get_array(data, scene.light_param.lightcolor0, 4);
-    for(; *data != '\t'; data++);
-    data += sizeof("lightpos0 = ");
-    get_array(data, scene.light_param.lightpos0, 4);
-    for(; *data != '\t'; data++);
-    data += sizeof("lightcolor1 = ");
-    get_array(data, scene.light_param.lightcolor1, 4);
-    data += sizeof("lightpos1 = ");
-    get_array(data, scene.light_param.lightpos1, 4);
-    bias = get_next_int(data, "light0 = ", &scene.light_param.light0);
-    data += bias;
-    bias = get_next_int(data, "light1 = ", &scene.light_param.light1);
-    data += bias;
-    for(; *data != '\n'; data++);
-    data += sizeof("\ntex_param:\n\timg_path =");
-    bias = get_str(data, &scene.tex_param.img_path[0]);
-    data += bias;
-    bias = get_next_int(data, "textured = ", &scene.tex_param.textured);
-    data += bias;
-    data += sizeof("\nanima_param:\n\tfall =");
-    bias = get_array(data, scene.anima_param.fall, 3);
-    bias = get_next_int(data,"animated = ", &scene.anima_param.animated);
-    data += bias;
-    bias = get_next_float(data, "dt = ", &scene.anima_param.dt);
-    data += bias;
-    bias = get_next_float(data, "annimattion_speed = ", &scene.anima_param.animation_speed);
-    for(; *data != '\n'; data++);
-    data += sizeof("\ntransform_param:\n\trotation_axis =");
-    bias = get_array(data, scene.transform_param.rotation_axis, 3);
-    bias = get_array(data, scene.transform_param.translation, 3);
-    data += bias;
-    data += 14;
-    bias = get_array(data, scene.transform_param.scale, 3);
-    printf("t_param = %f\n", scene.transform_param.translation[0]);
-    get_next_float(data, "alpha = ",  &scene.transform_param.alpha);
-    free(temp);
-    fclose(file);
+    fseek(file, sizeof("torus_params:"), SEEK_SET);    
+    fscanf(file, "%d\n", &scene.torus_param.partition);
+    fseek(file, sizeof("//partition"), SEEK_CUR);
+    fscanf(file, "%f\n", &scene.torus_param.torus_major);
+    fseek(file, sizeof("//torus_major"), SEEK_CUR);
+    fscanf(file, "%f\n", &scene.torus_param.torus_minor);
+    fseek(file, sizeof("//torus_minor"), SEEK_CUR);
+    fscanf(file, "%d\n", &scene.torus_param.polygon_mode);
+    fseek(file, sizeof("//polygon_mode\nlight_param:"), SEEK_CUR);    
+    fscanf(file, "%f %f %f %f\n", &scene.light_param.lightcolor0[0], &scene.light_param.lightcolor0[1], &scene.light_param.lightcolor0[2], &scene.light_param.lightcolor0[3]);
+    fseek(file, sizeof("//lightcolor0"), SEEK_CUR);
+    fscanf(file, "%f %f %f %f\n", &scene.light_param.lightpos0[0], &scene.light_param.lightpos0[1], &scene.light_param.lightpos0[2], &scene.light_param.lightpos0[3]);
+    fseek(file, sizeof("//lightpos0"), SEEK_CUR);
+    fscanf(file, "%f %f %f %f\n", &scene.light_param.lightcolor1[0], &scene.light_param.lightcolor1[1], &scene.light_param.lightcolor1[2], &scene.light_param.lightcolor1[3]);
+    fseek(file, sizeof("//lightcolor1"), SEEK_CUR);
+    fscanf(file, "%f %f %f %f\n", &scene.light_param.lightpos1[0], &scene.light_param.lightpos1[1], &scene.light_param.lightpos1[2], &scene.light_param.lightpos1[3]);
+    fseek(file, sizeof("//lightpos1"), SEEK_CUR);
+    fscanf(file, "%d\n", &scene.light_param.light0);
+    fseek(file, sizeof("//light0"), SEEK_CUR);
+    fscanf(file, "%d\n", &scene.light_param.light1);
+    fseek(file, sizeof("//light1\ntex_param:\n"), SEEK_CUR);    
+    fscanf(file, "%s\n", &scene.tex_param.img_path[0]);
+    fseek(file, sizeof("//path to image"), SEEK_CUR);
+    fscanf(file, "%d\n", &scene.tex_param.textured);
+    fseek(file, sizeof("//textured\nanima_param:"), SEEK_CUR);    
+    fscanf(file, "%f %f %f %f\n", &scene.anima_param.fall[0], &scene.anima_param.fall[1], &scene.anima_param.fall[2], &scene.anima_param.fall[3]);
+    fseek(file, sizeof("//fall"), SEEK_CUR);
+    fscanf(file, "%d\n", &scene.anima_param.animated);
+    fseek(file, sizeof("//animated"), SEEK_CUR);
+    fscanf(file, "%f\n", &scene.anima_param.dt);
+    fseek(file, sizeof("//dt"), SEEK_CUR);
+    fscanf(file, "%f\n", &scene.anima_param.animation_speed);
+    fseek(file, sizeof("//animation_speed\ntransform_param:"), SEEK_CUR);    
+    fscanf(file, "%f %f %f\n", &scene.transform_param.rotation_axis[0], &scene.transform_param.rotation_axis[1], &scene.transform_param.rotation_axis[2]);
+    fseek(file, sizeof("//rotation_axis"), SEEK_CUR);
+    fscanf(file, "%f %f %f\n", &scene.transform_param.translation[0], &scene.transform_param.translation[1], &scene.transform_param.translation[2]);
+    fseek(file, sizeof("//translation"), SEEK_CUR);
+    fscanf(file, "%f %f %f\n", &scene.transform_param.scale[0], &scene.transform_param.scale[1], &scene.transform_param.scale[2]);
+    fseek(file, sizeof("//scale"), SEEK_CUR);
+    fscanf(file, "%f\n", &scene.transform_param.alpha);
     return scene;
 }
-
-
-
-
-
-
-
-
-
-
-
