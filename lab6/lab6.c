@@ -3,30 +3,15 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <math.h>
-
-#define TORUS_MAJOR 0.15
-#define TORUS_MINOR 0.05
-#define ANIMATION_SPEED 20.0f
+#include "parametrs.h"
 
 float ratio;
-float alpha = 75;
-int partition = 32;
-int prev_partition = 32;
-int polygon_mode = GL_FALSE;
-int animated = 0;
+int prev_partition;
+int  min_ind_f = 0,  min_ind_s = 0;
 int down = 1;
-int textured = 0;
-vec3 rotation_axis = {0.f, 1.f, 0.f};
-vec3 translation = {0.f, 0.f, 0.f};
-vec3 scale = {1.f, 1.f, 1.f};
-vec3 fall = {0.f, -0.1f, 0.f};
-
-float lightcolor0[] = {0.5f, 0.2f, 0.2f, 1.f};
-float lightpos0[] = {0.f, -1.f, 1.f, 0.f};
-float lightcolor1[] = {0.2f, 0.2f, 1.f, 1.f};
-float lightpos1[] = {0.f, 1.f, 1.f, 0.f};
-
-const char *img_path = "ball.bmp";
+float cur_scale = 1.f;
+float cur_translation = 0.f;
+float start_time = 0.f;
 
 struct point {
 	float x;
@@ -45,16 +30,8 @@ GLuint t_id;
 
 struct point** vertices;
 struct point** normals;
-int  min_ind_f = 0, min_ind_s = 0;
 
-int light0 = 0;
-int light1 = 0;
-
-float start_time = 0.f; 
-float dt = 0.f;
-
-float cur_scale = 1.f;
-float cur_translation = 0.f;
+struct scene scene;
 
 void load_BMP(){
     unsigned char header[54];
@@ -62,7 +39,7 @@ void load_BMP(){
     unsigned int width, height;
     unsigned int img_size;
     unsigned char *data;
-    FILE *file = fopen(img_path, "rb");
+    FILE *file = fopen(scene.tex_param.img_path, "rb");
     if(!file){
         printf("File not found\n");
         return;
@@ -101,12 +78,12 @@ GLuint load_texture(){
 
 void calcTorus() {
     int i,j;
-    double phi = 2*M_PI/partition, theta = 2*M_PI/partition;
-	for (i = 0; i <= partition; i++) {
-		for (j = 0; j <= partition; j++) {
-            vertices[i][j].x = (TORUS_MAJOR + TORUS_MINOR * cos(theta*j)) * cos(phi*i);
-            vertices[i][j].y = (TORUS_MAJOR + TORUS_MINOR * cos(theta*j)) * sin(phi*i);
-            vertices[i][j].z = TORUS_MINOR * sin(theta*j);		
+    double phi = 2*M_PI/scene.torus_param.partition, theta = 2*M_PI/scene.torus_param.partition;
+	for (i = 0; i <= scene.torus_param.partition; i++) {
+		for (j = 0; j <= scene.torus_param.partition; j++) {
+            vertices[i][j].x = (scene.torus_param.torus_major + scene.torus_param.torus_minor * cos(theta*j)) * cos(phi*i);
+            vertices[i][j].y = (scene.torus_param.torus_major + scene.torus_param.torus_minor * cos(theta*j)) * sin(phi*i);
+            vertices[i][j].z = scene.torus_param.torus_minor * sin(theta*j);		
             normals[i][j].x = -(cos(theta * j) * cos(phi * i));
             normals[i][j].y = -(cos(theta * j) * sin(phi * i));
             normals[i][j].z = -(sin(theta * j));
@@ -122,17 +99,17 @@ void calcTorus() {
 void drawTorus() {
 	struct point first_vertex, second_vertex, first_normal, second_normal;
 	int i,j;
-	for (i = 0; i <= partition; i++) {
+	for (i = 0; i <= scene.torus_param.partition; i++) {
 		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
 		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
         glBegin(GL_QUAD_STRIP);
-		for (j = 0; j <= partition; j++) {
+		for (j = 0; j <= scene.torus_param.partition; j++) {
 			first_vertex = vertices[i][j];
             first_normal = normals[i][j];
-			second_vertex = vertices[(i + 1) % partition][j];
-            second_normal = normals[(i + 1) % partition][j];
+			second_vertex = vertices[(i + 1) % scene.torus_param.partition][j];
+            second_normal = normals[(i + 1) % scene.torus_param.partition][j];
 			glNormal3f(first_normal.x, first_normal.y, first_normal.z);
-            if(textured){
+            if(scene.tex_param.textured){
                 if((j % 2) == 0){
                     glTexCoord2f(0.f, 0.f);
                 }
@@ -142,7 +119,7 @@ void drawTorus() {
             }
             glVertex3f(first_vertex.x, first_vertex.y, first_vertex.z);
             glNormal3f(second_normal.x, second_normal.y, second_normal.z);
-            if(textured){
+            if(scene.tex_param.textured){
                 if((j % 2) == 0){
 			        glTexCoord2f(1.0f, 0.f);
                 }
@@ -156,6 +133,58 @@ void drawTorus() {
 	}
 }
 
+void drawCube(float center_x, float center_y, float center_z){
+    
+    glBegin(GL_POLYGON);
+    glColor3f(1.0, 0.0, 1.0);
+    glVertex3f(center_x - 0.15f, center_y-0.15f, center_z-0.15f);
+    glVertex3f(center_x - 0.15f, center_y + 0.15f, center_z-0.15f);
+    glVertex3f(center_x + 0.15f, center_y + 0.15f, center_z-0.15f);
+    glVertex3f(center_x + 0.15f, center_y-0.15f, center_z-0.15f);
+    glEnd();
+ 
+    glBegin(GL_POLYGON);
+    glColor3f(0.0, 0.0, 1.0);
+    glVertex3f(center_x-0.15f, center_y-0.15f, center_z-0.15f);
+    glVertex3f(center_x + 0.15f, center_y-0.15f, center_z-0.15f);
+    glVertex3f(center_x + 0.15f, center_y-0.15f, center_z + 0.15f);
+    glVertex3f(center_x + -0.15f, center_y-0.15f, center_z + 0.15f);
+    glEnd();
+ 
+    glBegin(GL_POLYGON);
+    glColor3f(0.1, 1.0, 0.1);
+    glVertex3f(center_x-0.15f, center_y-0.15f, center_z-0.15f);
+    glVertex3f(center_x-0.15f, center_y-0.15f, center_z + 0.15f);
+    glVertex3f(center_x-0.15f, center_y + 0.15f, center_z + 0.15f);
+    glVertex3f(center_x-0.15f, center_y + 0.15f, center_z-0.15f);
+    glEnd();
+ 
+    glBegin(GL_POLYGON);
+    glColor3f(0.0, 1.0, 1.0);
+    glVertex3f(center_x-0.15f, center_y-0.15f, center_z + 0.15f);
+    glVertex3f(center_x + 0.15f, center_y-0.15f, center_z + 0.15f);
+    glVertex3f(center_x + 0.15f, center_y + 0.15f, center_z + 0.15f);
+    glVertex3f(center_x-0.15f, center_y + 0.15f, center_z + 0.15f);
+    glEnd();
+ 
+    glBegin(GL_POLYGON);
+    glColor3f(1.0, 1.0, 1.0);
+    glVertex3f(center_x-0.15f, center_y + 0.15f, center_z-0.15f);
+    glVertex3f(center_x-0.15f, center_y + 0.15f, center_z + 0.15f);
+    glVertex3f(center_x + 0.15f, center_y + 0.15f, center_z + 0.15f);
+    glVertex3f(center_x + 0.15f, center_y + 0.15f, center_z-0.15f);
+    glEnd();
+ 
+    glBegin(GL_POLYGON);
+    glVertex3f(center_x + 0.15f, center_y-0.15f, center_z-0.15f);
+    glVertex3f(center_x + 0.15f, center_y + 0.15f, center_z-0.15f);
+    glVertex3f(center_x + 0.15f, center_y + 0.15f, center_z + 0.15f);
+    glVertex3f(center_x + 0.15f, center_y-0.15f, center_z + 0.15f);
+    glEnd();
+ 
+    glFlush();
+}
+
 void resizeTorus(){
     int i;
     min_ind_f = min_ind_s = 0;
@@ -164,105 +193,107 @@ void resizeTorus(){
             free(vertices[i]);
         free(vertices);
     }
-    vertices = (struct point**)malloc((partition+1)*sizeof(struct point*));
-	for (i = 0; i < partition + 1; i++) 
-		vertices[i] = (struct point*)malloc((partition+1)*sizeof(struct point));
+    vertices = (struct point**)malloc((scene.torus_param.partition+1)*sizeof(struct point*));
+	for (i = 0; i < scene.torus_param.partition + 1; i++) 
+		vertices[i] = (struct point*)malloc((scene.torus_param.partition+1)*sizeof(struct point));
     if(normals != NULL){
         for(i = 0; i < prev_partition + 1; i++)
             free(normals[i]);
         free(normals);
     }
-    normals = (struct point**)malloc((partition + 1) * sizeof(struct point*));
-    for(i = 0; i < partition + 1; i++)
-        normals[i] = (struct point*) malloc((partition + 1) * sizeof(struct point));
+    normals = (struct point**)malloc((scene.torus_param.partition + 1) * sizeof(struct point*));
+    for(i = 0; i < scene.torus_param.partition + 1; i++)
+        normals[i] = (struct point*) malloc((scene.torus_param.partition + 1) * sizeof(struct point));
 }
 
 static void key_callback(GLFWwindow* window, int key, int scancode, int action, int mods){
    if (key == GLFW_KEY_ESCAPE && action == GLFW_PRESS)
         glfwSetWindowShouldClose(window, GL_TRUE);
     if(action == GLFW_PRESS && key == GLFW_KEY_R)
-        alpha += 15;
+        scene.transform_param.alpha += 15;
     if(action == GLFW_PRESS && key == GLFW_KEY_T)
-        alpha -= 15;
+        scene.transform_param.alpha -= 15;
     if(action == GLFW_PRESS && key == GLFW_KEY_L){
-        scale[0] *= 1.1f;
-        scale[1] *= 1.1f;
-        scale[2] *= 1.1f;
+        scene.transform_param.scale[0] *= 1.1f;
+        scene.transform_param.scale[1] *= 1.1f;
+        scene.transform_param.scale[2] *= 1.1f;
         cur_scale *= 1.1f;
     }
     if(action == GLFW_PRESS && key == GLFW_KEY_M){
-        scale[0] *= 0.9f;
-        scale[1] *= 0.9f;
-        scale[2] *= 0.9f;
+        scene.transform_param.scale[0] *= 0.9f;
+        scene.transform_param.scale[1] *= 0.9f;
+        scene.transform_param.scale[2] *= 0.9f;
         cur_scale *= 0.9f;
     }
     if(action == GLFW_PRESS && key == GLFW_KEY_C){
-        polygon_mode = !polygon_mode;
+        scene.torus_param.polygon_mode = !scene.torus_param.polygon_mode;
     } 
     if(action == GLFW_PRESS && key == GLFW_KEY_P){
-        prev_partition = partition;
-        partition /= 2;
+        prev_partition = scene.torus_param.partition;
+        scene.torus_param.partition /= 2;
         resizeTorus();
         calcTorus();
     }
     if(action == GLFW_PRESS && key == GLFW_KEY_O){
-        prev_partition = partition;
-        partition *= 2;
+        prev_partition = scene.torus_param.partition;
+        scene.torus_param.partition *= 2;
         resizeTorus();
         calcTorus();
     }
     if(action == GLFW_PRESS && key == GLFW_KEY_RIGHT){
-        translation[0] += 0.15f;
+        scene.transform_param.translation[0] += 0.15f;
     }
     if(action == GLFW_PRESS && key == GLFW_KEY_LEFT){
-        translation[0] -= 0.15f;
+        scene.transform_param.translation[0] -= 0.15f;
     }
     if(action == GLFW_PRESS && key == GLFW_KEY_UP){
-        translation[1] += 0.15f;
+        scene.transform_param.translation[1] += 0.15f;
         cur_translation += 0.15f;
     }
     if(action == GLFW_PRESS && key == GLFW_KEY_DOWN){
-        translation[1] -= 0.15f;
+        scene.transform_param.translation[1] -= 0.15f;
         cur_translation -= 0.15f;
     }
     if(action == GLFW_PRESS && key == GLFW_KEY_1){
-        if(light0 == 0){
-            glLightfv(GL_LIGHT0, GL_DIFFUSE, lightcolor0);
-            glLightfv(GL_LIGHT0, GL_POSITION, lightpos0);
+        if(scene.light_param.light0 == 0){
+            glLightfv(GL_LIGHT0, GL_DIFFUSE, scene.light_param.lightcolor0);
+            glLightfv(GL_LIGHT0, GL_POSITION, scene.light_param.lightpos0);
             glEnable(GL_LIGHT0);
-            light0 = 1;
+            scene.light_param.light0 = 1;
         }
         else{
             glDisable(GL_LIGHT0);
-            light0 = 0;
+            scene.light_param.light0 = 0;
         }
     }
     if(action == GLFW_PRESS && key == GLFW_KEY_2){
-        if(light1 == 0){
-            glLightfv(GL_LIGHT1, GL_DIFFUSE, lightcolor1);
-            glLightfv(GL_LIGHT1, GL_POSITION, lightpos1);
+        if(scene.light_param.light1 == 0){
+            glLightfv(GL_LIGHT1, GL_DIFFUSE, scene.light_param.lightcolor1);
+            glLightfv(GL_LIGHT1, GL_POSITION, scene.light_param.lightpos1);
             glEnable(GL_LIGHT1);
-            light1 = 1;
+            scene.light_param.light1 = 1;
         }
         else{
             glDisable(GL_LIGHT1);
-            light1 = 0;
+            scene.light_param.light1 = 0;
         }
     }
     if(action == GLFW_PRESS && key == GLFW_KEY_A){
-        start_time = (float) glfwGetTime();
-        animated = 1;
+        if(!scene.anima_param.animated){
+            start_time = (float) glfwGetTime();
+            scene.anima_param.animated = 1;
+        }
+        else
+            scene.anima_param.animated = 0;
     }
     if(action == GLFW_PRESS && key == GLFW_KEY_X){
         load_BMP();
         t_id = load_texture();
-        if(textured == 0){
-            textured = 1;
-            glEnable(GL_TEXTURE_2D);
+        if(scene.tex_param.textured == 0){
+            scene.tex_param.textured = 1;
         }
         else{
-            glDisable(GL_TEXTURE_2D);
-            textured = 0;
+            scene.tex_param.textured = 0;
         }
     }
 }
@@ -300,7 +331,7 @@ int detect_collision(float bias){
 }
 
 void draw(GLFWwindow *window){
-    if (polygon_mode == GL_TRUE){
+    if (scene.torus_param.polygon_mode == GL_TRUE){
         glEnable(GL_CULL_FACE); 
 	    glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
     }
@@ -312,32 +343,36 @@ void draw(GLFWwindow *window){
     glMatrixMode(GL_MODELVIEW);
     glLoadIdentity();
     glPushMatrix(); 
-    if(animated == 1){
+    if(scene.anima_param.animated == 1){
         if(down){
-            if(dt < 0)
-                dt = 0;
-            dt += ((float) glfwGetTime() - start_time)/ANIMATION_SPEED;
+            if(scene.anima_param.dt < 0)
+                scene.anima_param.dt = 0;
+            scene.anima_param.dt += ((float) glfwGetTime() - start_time)/scene.anima_param.animation_speed;
         }
         if(!down){
-            dt -= ((float) glfwGetTime() - start_time)/ANIMATION_SPEED;
+            scene.anima_param.dt -= ((float) glfwGetTime() - start_time)/scene.anima_param.animation_speed;
         }
-        if(detect_collision(dt * fall[1])){
+        if(detect_collision(scene.anima_param.dt * scene.anima_param.fall[1])){
             down = 0;
         }
-        if(dt < 0){
+        if(scene.anima_param.dt < 0){
             start_time = glfwGetTime();
             down = 1;
         }
-        glTranslatef(fall[0], dt * fall[1], fall[2]);
+        glTranslatef(scene.anima_param.fall[0], scene.anima_param.dt * scene.anima_param.fall[1], scene.anima_param.fall[2]);
     }
-    if(textured == 1){
-        glBindTexture(GL_TEXTURE_2D, t_id);
+    if(scene.tex_param.textured == 1){
+        glEnable(GL_TEXTURE_2D);
     }
-    glTranslatef(translation[0], translation[1], translation[2]);
-    glRotatef(alpha,rotation_axis[0],rotation_axis[1], rotation_axis[2]);
-    glScalef(scale[0], scale[1], scale[2]);
+    glTranslatef(scene.transform_param.translation[0], scene.transform_param.translation[1], scene.transform_param.translation[2]);
+    glRotatef(scene.transform_param.alpha,scene.transform_param.rotation_axis[0],scene.transform_param.rotation_axis[1], scene.transform_param.rotation_axis[2]);
+    glScalef(scene.transform_param.scale[0], scene.transform_param.scale[1], scene.transform_param.scale[2]);
     drawTorus();
     glPopMatrix();
+    if(scene.tex_param.textured){
+        glDisable(GL_TEXTURE_2D);
+    }
+    drawCube(-1,-0.5f,0);
     glfwSwapBuffers(window);
     glfwPollEvents();
 }
@@ -362,10 +397,13 @@ void set_projection(int width, int height){
     glMatrixMode(GL_PROJECTION);
     glLoadIdentity();
     glOrtho(-ratio, ratio, -1.f, 1.f, 5.f, -5.f);
+    glRotatef(10, 1.0f, 0.f, 0.f);
+    glRotatef(10, 0.f, 1.f, 0.f);
 }
 
 
 int main(void){
+    scene = parse_params_file("params.txt");
     GLFWwindow* window = init_window();
     glfwSetKeyCallback(window, key_callback);
     glfwSetFramebufferSizeCallback(window, framebuffer_size_callback);
