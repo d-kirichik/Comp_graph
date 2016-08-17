@@ -12,6 +12,7 @@ int down = 1;
 float cur_scale = 1.f;
 float cur_translation = 0.f;
 float start_time = 0.f;
+int intensity = 0;
 
 struct point {
 	float x;
@@ -296,6 +297,11 @@ static void key_callback(GLFWwindow* window, int key, int scancode, int action, 
             scene.tex_param.textured = 0;
         }
     }
+    if(action == GLFW_PRESS && key == GLFW_KEY_I){
+        if(scene.tex_param.textured){
+            intensity = !intensity;
+        }
+    }
 }
 
 void framebuffer_size_callback(GLFWwindow* window, int width, int height){
@@ -363,6 +369,10 @@ void draw(GLFWwindow *window){
     }
     if(scene.tex_param.textured == 1){
         glEnable(GL_TEXTURE_2D);
+        if(intensity){
+            float emission[4] = {0.25f, 0.25, 0.25f, 1.f};
+            glMaterialfv(GL_FRONT_AND_BACK, GL_EMISSION, emission);
+        }
     }
     glTranslatef(scene.transform_param.translation[0], scene.transform_param.translation[1], scene.transform_param.translation[2]);
     glRotatef(scene.transform_param.alpha,scene.transform_param.rotation_axis[0],scene.transform_param.rotation_axis[1], scene.transform_param.rotation_axis[2]);
@@ -371,6 +381,10 @@ void draw(GLFWwindow *window){
     glPopMatrix();
     if(scene.tex_param.textured){
         glDisable(GL_TEXTURE_2D);
+    }
+    if(intensity){
+        float emission[4] = {0.f, 0.f, 0.f, 1.f};
+        glMaterialfv(GL_FRONT_AND_BACK, GL_EMISSION, emission);
     }
     drawCube(-1,-0.5f,0);
     glfwSwapBuffers(window);
