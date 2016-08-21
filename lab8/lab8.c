@@ -8,15 +8,11 @@
 
 float ratio;
 int prev_partition;
-int  min_ind_f = 0,  min_ind_s = 0;
-int down = 1;
-float cur_scale = 1.f;
-float cur_translation = 0.f;
-float start_time = 0.f;
 
-GLuint vao;
-GLuint vbo;
-GLuint shader_programme;
+GLuint vao, vao_c;
+GLuint vbo, vbo_c;
+GLuint shader_prog;
+GLuint vs, fs;
 
 struct point {
 	float x;
@@ -28,9 +24,57 @@ struct point {
 struct point* vertices;
 struct point* normals;
 struct point* drawable;
+struct point* cube;
 int count = 0;
 
 struct scene scene;
+
+
+
+static float cube_vertices[] = {-1.15f, -0.65f, -0.15f,
+                                -1.15f, -0.35f, -0.15f,
+                                -0.85f, -0.35f, -0.15f,
+                                -0.85f, -0.65f, -0.15f, 
+                                -1.15f, -0.65f, -0.15f,
+                                -0.85f, -0.65f, -0.15f,
+                                -0.85f, -0.65f, 0.15f,
+                                -1.15f, -0.65f, 0.15f,
+                                -1.15f, -0.65f, -0.15f,
+                                -1.15f, -0.65f, 0.15f,
+                                -1.15f, -0.35f, 0.15f,
+                                -1.15f, -0.35f, -0.15f,
+                                -1.15f, -0.65f, 0.15f,
+                                -0.85f, -0.65f, 0.15f,
+                                -0.85f, -0.35f, 0.15f,
+                                -1.15f, -0.35f, 0.15f,
+                                -1.15f, -0.35f, -0.15f,
+                                -1.15f, -0.35f, 0.15f, 
+                                -0.85f, -0.35f, 0.15f,
+                                -0.85f, -0.35f, -0.15f,
+                                -0.85f, -0.65f, -0.15f,
+                                -0.85f, -0.35f, -0.15f,
+                                -0.85f, -0.35f, 0.15f,
+                                -0.85f, -0.65f, 0.15f 
+};
+
+char* file_to_buf(const char *file){
+    FILE *fptr;
+    long length;
+    char *buf;
+    fptr = fopen(file, "rb"); 
+    if (!fptr){ 
+        printf("File not found\n");
+        return NULL;
+    }
+    fseek(fptr, 0, SEEK_END);
+    length = ftell(fptr); 
+    buf = malloc(length+1);
+    fseek(fptr, 0, SEEK_SET);
+    fread(buf, length, 1, fptr);
+    fclose(fptr);
+    buf[length] = 0;
+    return buf;
+}
 
 void calcTorus() {
     int i,j;
@@ -44,10 +88,6 @@ void calcTorus() {
             normals[i * scene.torus_param.partition + j].y = -(cos(theta * j) * sin(phi * i));
             normals[i * scene.torus_param.partition + j].z = -(sin(theta * j));
             count++;
-            if(vertices[i * scene.torus_param.partition + j].y < vertices[min_ind_f * scene.torus_param.partition + min_ind_s].y){
-                min_ind_f = i;
-                min_ind_s = j;
-            }
         }
 	}
     return;
@@ -93,64 +133,89 @@ void form_array_for_drawing(){
         j++;
     }
 }
-	
-int create_shaders () {
-	const char* vertex_shader =
-	"#version 130\n"
-	"in vec3 vp;"
-	"void main () {"
-	"	gl_Position = vec4 (vp, 1.0);"
-	"}";
-	const char* fragment_shader =
-	"#version 130\n"
-	"out vec4 frag_colour;"
-	"void main () {"
-	"	frag_colour = vec4 (0.5, 0.0, 0.5, 1.0);"
-	"}";
-	GLuint vs, fs;
-	
-	if (!glfwInit ()) {
-		fprintf (stderr, "ERROR: could not start GLFW3\n");
-		return 1;
-	} 
 
-	glEnable (GL_DEPTH_TEST); 
-	glDepthFunc (GL_LESS);
+int create_torus_shaders () {
+	const char* vertex_shader = file_to_buf("vert_shader_torus.glsl");
+	const char* fragment_shader = file_to_buf("frag_shader_torus.glsl");
+    char buffer[512];	
+    
+	GLint status;
+
+	vs = glCreateShader (GL_VERTEX_SHADER);
+	glShaderSource (vs, 1, &vertex_shader, NULL);
+	glCompileShader (vs);
+    glGetShaderiv(vs, GL_COMPILE_STATUS, &status);    
+    glGetShaderInfoLog(vs, 512, NULL, buffer);
+
+	fs = glCreateShader (GL_FRAGMENT_SHADER);
+	glShaderSource (fs, 1, &fragment_shader, NULL);
+	glCompileShader (fs);
+    glGetShaderiv(fs, GL_COMPILE_STATUS, &status);    
+    glGetShaderInfoLog(fs, 512, NULL, buffer);
+	
+    shader_prog = glCreateProgram ();
+	glAttachShader (shader_prog, fs);
+	glAttachShader (shader_prog, vs);
+	glLinkProgram (shader_prog);
+    return 0;
+}
+
+
+void create_vbo(){
 	glGenBuffers (1, &vbo);
 	glBindBuffer (GL_ARRAY_BUFFER, vbo);
-	glBufferData (GL_ARRAY_BUFFER, (scene.torus_param.partition + 1) * (scene.torus_param.partition + 1) * 6 * sizeof (GLfloat), drawable,
-                  GL_STATIC_DRAW);
-	
+	glBufferData (GL_ARRAY_BUFFER, (scene.torus_param.partition + 1) * (scene.torus_param.partition + 1) * 6 * sizeof (GLfloat), drawable, GL_STATIC_DRAW);
+
+	glGenBuffers (1, &vbo_c);
+	glBindBuffer (GL_ARRAY_BUFFER, vbo_c);
+	glBufferData (GL_ARRAY_BUFFER, 24 * 3 * sizeof (GLfloat), cube_vertices, GL_STATIC_DRAW);
+}
+
+void create_vao(){
+
 	glGenVertexArrays (1, &vao);
 	glBindVertexArray (vao);
 	glEnableVertexAttribArray (0);
 	glBindBuffer (GL_ARRAY_BUFFER, vbo);
 	glVertexAttribPointer (0, 3, GL_FLOAT, GL_FALSE, 0, NULL);
 	
-	vs = glCreateShader (GL_VERTEX_SHADER);
-	glShaderSource (vs, 1, &vertex_shader, NULL);
-	glCompileShader (vs);
-	fs = glCreateShader (GL_FRAGMENT_SHADER);
-	glShaderSource (fs, 1, &fragment_shader, NULL);
-	glCompileShader (fs);
-	shader_programme = glCreateProgram ();
-	glAttachShader (shader_programme, fs);
-	glAttachShader (shader_programme, vs);
-	glLinkProgram (shader_programme);
-    return 0;
+	glGenVertexArrays (1, &vao_c);
+	glBindVertexArray (vao_c);
+	glEnableVertexAttribArray (0);
+	glBindBuffer (GL_ARRAY_BUFFER, vbo_c);
+	glVertexAttribPointer (0, 3, GL_FLOAT, GL_FALSE, 0, NULL);
+	
+    glBindVertexArray(0);
 }
 
 void draw(GLFWwindow* window){
+    if (scene.torus_param.polygon_mode == GL_TRUE){
+	    glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
+    }
+	else{
+        glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);   
+    }
+    glMatrixMode(GL_MODELVIEW);
+    glLoadIdentity();
+    glPushMatrix(); 
+    glTranslatef(scene.transform_param.translation[0], scene.transform_param.translation[1], scene.transform_param.translation[2]);
+    glRotatef(scene.transform_param.alpha,scene.transform_param.rotation_axis[0],scene.transform_param.rotation_axis[1], scene.transform_param.rotation_axis[2]);
+    glScalef(scene.transform_param.scale[0], scene.transform_param.scale[1], scene.transform_param.scale[2]);
 	glClear (GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-	glUseProgram (shader_programme);
+	glUseProgram (shader_prog);
 	glBindVertexArray (vao);
 	glDrawArrays(GL_TRIANGLE_STRIP, 0, 2 * (scene.torus_param.partition + 1) * (scene.torus_param.partition + 1));
-    glfwPollEvents ();
+    glPopMatrix();    
+	glBindVertexArray(0);
+    glBindVertexArray(vao_c);
+    glDrawArrays(GL_TRIANGLE_STRIP, 0, 24);
+    glBindVertexArray(0);
+    glUseProgram(0);
+	glfwPollEvents ();
 	glfwSwapBuffers (window);
 }
 
 void resizeTorus(){
-    min_ind_f = min_ind_s = 0;
     if(vertices != NULL){
         free(vertices);
     }
@@ -159,6 +224,58 @@ void resizeTorus(){
         free(normals);
     }
     normals = (struct point*)malloc((scene.torus_param.partition + 1) * (scene.torus_param.partition + 1) * sizeof(struct point));
+}
+
+static void key_callback(GLFWwindow* window, int key, int scancode, int action, int mods){
+   if (key == GLFW_KEY_ESCAPE && action == GLFW_PRESS)
+        glfwSetWindowShouldClose(window, GL_TRUE);
+    if(action == GLFW_PRESS && key == GLFW_KEY_R)
+        scene.transform_param.alpha += 15;
+    if(action == GLFW_PRESS && key == GLFW_KEY_T)
+        scene.transform_param.alpha -= 15;
+    if(action == GLFW_PRESS && key == GLFW_KEY_L){
+        scene.transform_param.scale[0] *= 1.1f;
+        scene.transform_param.scale[1] *= 1.1f;
+        scene.transform_param.scale[2] *= 1.1f;
+    }
+    if(action == GLFW_PRESS && key == GLFW_KEY_M){
+        scene.transform_param.scale[0] *= 0.9f;
+        scene.transform_param.scale[1] *= 0.9f;
+        scene.transform_param.scale[2] *= 0.9f;
+    }
+    if(action == GLFW_PRESS && key == GLFW_KEY_C){
+        scene.torus_param.polygon_mode = !scene.torus_param.polygon_mode;
+    } 
+    if(action == GLFW_PRESS && key == GLFW_KEY_P){
+        prev_partition = scene.torus_param.partition;
+        scene.torus_param.partition /= 2;
+        resizeTorus();
+        calcTorus();
+        form_array_for_drawing();
+        create_vbo();
+        create_vao();
+    }
+    if(action == GLFW_PRESS && key == GLFW_KEY_O){
+        prev_partition = scene.torus_param.partition;
+        scene.torus_param.partition *= 2;
+        resizeTorus();
+        calcTorus();
+        form_array_for_drawing();
+        create_vbo();
+        create_vao();
+    }
+    if(action == GLFW_PRESS && key == GLFW_KEY_RIGHT){
+        scene.transform_param.translation[0] += 0.15f;
+    }
+    if(action == GLFW_PRESS && key == GLFW_KEY_LEFT){
+        scene.transform_param.translation[0] -= 0.15f;
+    }
+    if(action == GLFW_PRESS && key == GLFW_KEY_UP){
+        scene.transform_param.translation[1] += 0.15f;
+    }
+    if(action == GLFW_PRESS && key == GLFW_KEY_DOWN){
+        scene.transform_param.translation[1] -= 0.15f;
+    }
 }
 
 void stop(GLFWwindow *window){
@@ -170,6 +287,11 @@ void stop(GLFWwindow *window){
         free(normals);
     if(drawable)
         free(drawable);
+    glDeleteProgram(shader_prog);
+    glDeleteShader(vs);
+    glDeleteShader(fs);
+    glDeleteBuffers(1, &vbo);
+    glDeleteVertexArrays(1, &vao);
 }
 
 GLFWwindow* init_window(){
@@ -206,12 +328,15 @@ void set_projection(int width, int height){
 int main(void){
     scene = parse_params_file("params.txt");
     GLFWwindow* window = init_window();
+    glfwSetKeyCallback(window, key_callback);
     set_viewport(window, 1920, 1080);
     set_projection(1920, 1080);
     resizeTorus();
     calcTorus(); 
     form_array_for_drawing();
-    create_shaders();
+    create_vbo();
+    create_vao();
+    create_torus_shaders();
     while (!glfwWindowShouldClose(window)){
         draw(window);
     }
