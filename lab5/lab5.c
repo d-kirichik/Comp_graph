@@ -122,6 +122,74 @@ int is_visible(struct point *vertices, struct point p, int begin, int end, size_
     else return 0; 
 }
 
+
+double min(double x, double y){
+    if(x < y)
+        return x;
+    else return y;
+}
+
+double max(double x, double y){
+    if(x > y)
+        return x;
+    else return y;
+}
+
+int point_in_box (struct point t, struct point p1, struct point p2){
+	double eps = 1e-8;
+    return  (abs (t.x - min(p1.x, p2.x)) <= eps || min(p1.x, p2.x) <= t.x) &&
+            (abs (max(p1.x, p2.x) - t.x) <= eps || max(p1.x, p2.x) >= t.x) &&
+            (abs (t.y - min(p1.y, p2.y)) <= eps || min(p1.y, p2.y) <= t.y) &&
+            (abs (max(p1.y, p2.y) - t.y) <= eps || max(p1.y, p2.y) >= t.y);
+}
+
+struct point mid_point (struct point p1, struct point p2){
+    struct point mid;
+    mid.x = (p1.x + p2.x)/2;
+    mid.y = (p1.y + p2.y)/2;
+    return mid;
+}
+
+int belongs_to_segment (struct point p1, struct point p2, struct point t){
+	double eps = 1e-8;
+    double a = p2.y - p1.y;
+    double b = p1.x - p2.x;
+    double c = - a * p1.x - b * p1.y;
+    if (abs(a * t.x + b * t.y + c) > eps) return 0;
+    return point_in_box (t, p1, p2);
+}
+
+void insert(struct point *array, int size, struct point p, int pos){
+    int c;
+    for (c = size - 1; c >= pos - 1; c--)
+        array[c+1] = array[c];
+    array[pos-1] = p;
+}
+
+void split(){
+    int is_inter = 0;
+    int i, j, k = 0;
+    int intersection[buf_count];
+    for(i = 0; i < buf_count; i++){
+        for(j = 0; j < buf_count; j++){
+            if(i != j && j != ((i + 1) % buf_count) && belongs_to_segment(buffer[i], buffer[(1+i) % buf_count], buffer[j])){
+                intersection[k] = j;
+                k++;
+                intersection[k] = i+1;
+                k++;
+                is_inter = 1;
+            }
+        }
+    }
+    if(is_inter){
+        for(i = 0; i < k; i+= 2){
+            buf_count++;
+            buffer = realloc(buffer, buf_count * sizeof(struct point));
+            insert(buffer, buf_count-1, buffer[intersection[i]], intersection[i+1] + 1);
+        }
+    }
+}
+
 void Satherlend_Hodgman(const struct point* polygon_vertices, struct point* clipper_vertices){
     int i, j;
     buf_count = polygon_count;
@@ -170,54 +238,29 @@ void Satherlend_Hodgman(const struct point* polygon_vertices, struct point* clip
         memcpy(buffer, clipped_polygon_vertices, clipped_polygon_count * sizeof(struct point));
         clipped_polygon_count = 0;
         memset(clipped_polygon_vertices, 0, sizeof(struct point));
-
+    }
+    for(i = 0; i < buf_count; i++){
+        printf("%f %f\n", buffer[i].x, buffer[i].y);
+    }
+    printf("\n");
+    split();
+    printf("\n");
+    for(i = 0; i < buf_count; i++){
+        printf("%f %f\n", buffer[i].x, buffer[i].y);
     }
     return;
 }
 
-/*int belongs_to_segment(struct point s_seg, struct point e_seg, struct point unknown){
-    double s_prod, ps_prod;
-    struct point vec_s, vec_e, vec_dir;
-    vec_s.x = s_seg.x - unknown.x;
-    vec_s.y = s_seg.y - unknown.y;
-    vec_e.x = e_seg.x - unknown.x;
-    vec_e.y = e_seg.y - unknown.y;
-    vec_dir.x = e_seg.x - s_seg.x;
-    vec_dir.y = e_seg.y - s_seg.y;
-    s_prod = vec_s.x * vec_e.x + vec_s.y * vec_e.y;
-    ps_prod = vec_dir.x * (-vec_s.y) + vec_s.x * vec_dir.y;
-    printf("prods = %f %f\n", ps_prod, s_prod);
-    if((int)ps_prod == 0 && s_prod <= 0 )
-        return 1;
-    else return 0;
-}*/
-double min(double x, double y){
-    if(x < y)
-        return x;
-    else return y;
-}
 
-double max(double x, double y){
-    if(x > y)
-        return x;
-    else return y;
-}
-
-int point_in_box (struct point t, struct point p1, struct point p2){
-	double eps = 1e-8;
-    return  (abs (t.x - min(p1.x, p2.x)) <= eps || min(p1.x, p2.x) <= t.x) &&
-            (abs (max(p1.x, p2.x) - t.x) <= eps || max(p1.x, p2.x) >= t.x) &&
-            (abs (t.y - min(p1.y, p2.y)) <= eps || min(p1.y, p2.y) <= t.y) &&
-            (abs (max(p1.y, p2.y) - t.y) <= eps || max(p1.y, p2.y) >= t.y);
-}
-
-int belongs_to_segment (struct point p1, struct point p2, struct point t){
-	double eps = 1e-8;
-    double a = p2.y - p1.y;
-    double b = p1.x - p2.x;
-    double c = - a * p1.x - b * p1.y;
-    if (abs(a * t.x + b * t.y + c) > eps) return 0;
-    return point_in_box (t, p1, p2);
+int is_inside_polygon(struct point* pl, struct point p, size_t length){
+    int c = 0;
+    int i, j;    
+    for (i = 0, j = length-1; i < length; j = i++) {
+        if ((((pl[i].y<=p.y) && (p.y<pl[j].y)) || ((pl[j].y<=p.y) && (p.y<pl[i].y))) && (p.x > (pl[j].x - pl[i].x) * (p.y - pl[i].y) / (pl[j].y - pl[i].y) + pl[i].x)){
+            c = !c;
+        }
+    }
+    return c;
 }
 
 void draw_clipper(){
@@ -255,13 +298,17 @@ void draw_clipped_polygon(){
     }
     glEnd();
     int j;
+    //printf("\n");
     for(i = 0; i < buf_count; i++){
+        struct point mp = mid_point(buffer[i], buffer[(i+1)%buf_count]);
+        int belong_p = is_inside_polygon(polygon_vertices, mp, polygon_count);
+       // printf("%f %f at %d%d\n", mp.x, mp.y, i, (i+1)%buf_count);
+       // printf("%d\n", belong_p);
         for(j = 0; j < clipper_count; j++){
             int belong_f = belongs_to_segment(clipper_vertices[j], clipper_vertices[(j+1) % clipper_count], buffer[i]);
             int belong_s = belongs_to_segment(clipper_vertices[j], clipper_vertices[(j+1) % clipper_count], buffer[(i+1) % buf_count]);
-            printf("%d %d\n", belong_f, belong_s);
-            if(belong_f && belong_s){
-                glBegin(GL_LINES);
+            if(belong_f && belong_s && belong_p){
+                glBegin(GL_LINE_LOOP);
                 glColor3f(1.f, 0.f, 0.f);
                 glVertex2f(buffer[i].x, buffer[i].y);
                 glVertex2f(buffer[(i+1) % buf_count].x, buffer[(i+1) % buf_count].y);
@@ -283,6 +330,8 @@ GLFWwindow* init_window(){
     } 
     glfwMakeContextCurrent(window);
     glfwSwapInterval(1);
+    glEnable(GL_CULL_FACE);
+    glHint(GL_LINE_SMOOTH_HINT, GL_NICEST);
     clipper_vertices = (struct point*) calloc(number_of_clipper_vertices, sizeof(struct point));
     if(clipper_vertices == NULL)
         exit(EXIT_FAILURE);
