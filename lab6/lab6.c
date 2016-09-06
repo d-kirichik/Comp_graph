@@ -317,8 +317,14 @@ static void key_callback(GLFWwindow* window, int key, int scancode, int action, 
         if(scene.light_param.light0 == 1){
             glEnable(GL_LIGHT0);
         }
+        if(scene.light_param.light0 == 0){
+            glDisable(GL_LIGHT0);
+        }
         if(scene.light_param.light1 == 1){
             glEnable(GL_LIGHT1);
+        }
+        if(scene.light_param.light1 == 0){
+            glDisable(GL_LIGHT1);
         }
     }
 }
@@ -338,8 +344,7 @@ GLFWwindow* init_window(){
         exit(EXIT_FAILURE);
     }
     glfwMakeContextCurrent(window);
-    float spec[4] = {0.f , 0.2f, 0.2f, 1.f};
-    glMaterialfv(GL_FRONT_AND_BACK, GL_EMISSION, spec);
+    glMaterialfv(GL_FRONT_AND_BACK, GL_EMISSION, scene.torus_param.material);
     glEnable(GL_DEPTH_TEST);
     glEnable(GL_LIGHTING);
     glEnable(GL_COLOR_MATERIAL);
@@ -377,7 +382,8 @@ void draw(GLFWwindow *window){
             scene.anima_param.dt += ((float) glfwGetTime() - start_time)/scene.anima_param.animation_speed;
         }
         if(!down){
-            scene.anima_param.dt -= ((float) glfwGetTime() - start_time)/scene.anima_param.animation_speed;
+            scene.anima_param.dt -= (((float) glfwGetTime() - start_time)/scene.anima_param.animation_speed) ;
+            start_time += 0.03f;
         }
         if(detect_collision(scene.anima_param.dt * scene.anima_param.fall[1])){
             down = 0;
@@ -393,6 +399,9 @@ void draw(GLFWwindow *window){
     }
     if(scene.tex_param.textured == 1){
         glEnable(GL_TEXTURE_2D);
+    }
+    if(scene.tex_param.textured == 0){
+        glDisable(GL_TEXTURE_2D);
     }
     glTranslatef(scene.transform_param.translation[0], scene.transform_param.translation[1], scene.transform_param.translation[2]);
     glRotatef(scene.transform_param.alpha,scene.transform_param.rotation_axis[0],scene.transform_param.rotation_axis[1], scene.transform_param.rotation_axis[2]);
@@ -428,7 +437,6 @@ void set_viewport(GLFWwindow* window, int width, int height){
 void set_projection(int width, int height){
     ratio = width / (float) height;
     glMatrixMode(GL_PROJECTION);
-    glLoadIdentity();
     glOrtho(-ratio, ratio, -1.f, 1.f, 5.f, -5.f);
     glRotatef(10, 1.0f, 0.f, 0.f);
     glRotatef(10, 0.f, 1.f, 0.f);
@@ -450,7 +458,3 @@ int main(void){
     stop(window);
     return 0;
 }
-/*TODO
-3. texture
-4. равноускоренный
-*/
