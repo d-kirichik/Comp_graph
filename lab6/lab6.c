@@ -7,7 +7,7 @@
 
 float ratio;
 int prev_partition;
-int  min_ind_f = 0,  min_ind_s = 0;
+int min_ind_f = 0, min_ind_s = 0;
 int down = 1;
 float cur_scale = 1.f;
 float cur_translation = 0.f;
@@ -303,9 +303,22 @@ static void key_callback(GLFWwindow* window, int key, int scancode, int action, 
             intensity = 1;
         }
         else{
-            printf("!\n");
-            glTexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_SUBTRACT);
+            glTexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE);
             intensity = 0;
+        }
+    }
+    if(action == GLFW_PRESS && key == GLFW_KEY_S){
+        save_scene("params.txt", scene);
+    }
+    if(action == GLFW_PRESS && key == GLFW_KEY_D){
+        scene = parse_params_file("params.txt");
+        cur_scale = scene.transform_param.scale[0];
+        cur_translation = scene.transform_param.translation[1];
+        if(scene.light_param.light0 == 1){
+            glEnable(GL_LIGHT0);
+        }
+        if(scene.light_param.light1 == 1){
+            glEnable(GL_LIGHT1);
         }
     }
 }
@@ -325,6 +338,8 @@ GLFWwindow* init_window(){
         exit(EXIT_FAILURE);
     }
     glfwMakeContextCurrent(window);
+    float spec[4] = {0.f , 0.2f, 0.2f, 1.f};
+    glMaterialfv(GL_FRONT_AND_BACK, GL_EMISSION, spec);
     glEnable(GL_DEPTH_TEST);
     glEnable(GL_LIGHTING);
     glEnable(GL_COLOR_MATERIAL);
@@ -371,6 +386,9 @@ void draw(GLFWwindow *window){
             start_time = glfwGetTime();
             down = 1;
         }
+        glTranslatef(scene.anima_param.fall[0], scene.anima_param.dt * scene.anima_param.fall[1], scene.anima_param.fall[2]);
+    }
+    if(scene.anima_param.animated == 0){
         glTranslatef(scene.anima_param.fall[0], scene.anima_param.dt * scene.anima_param.fall[1], scene.anima_param.fall[2]);
     }
     if(scene.tex_param.textured == 1){
@@ -432,3 +450,7 @@ int main(void){
     stop(window);
     return 0;
 }
+/*TODO
+3. texture
+4. равноускоренный
+*/
